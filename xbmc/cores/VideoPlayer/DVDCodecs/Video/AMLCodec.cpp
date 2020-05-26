@@ -412,6 +412,9 @@ static vformat_t codecid_to_vformat(enum AVCodecID id)
     case AV_CODEC_ID_VP9:
       format = VFORMAT_VP9;
       break;
+    case AV_CODEC_ID_AVS2:
+      format = VFORMAT_AVS2;
+      break;
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
       format = VFORMAT_AVS;

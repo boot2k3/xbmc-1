@@ -240,6 +240,9 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
     case AV_CODEC_ID_WMV3:
       m_pFormatName = "am-wmv3";
       break;
+    case AV_CODEC_ID_AVS2:
+      m_pFormatName = "am-avs2";
+      break;
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
       m_pFormatName = "am-avs";
