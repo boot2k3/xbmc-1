@@ -412,6 +412,9 @@ static vformat_t codecid_to_vformat(enum AVCodecID id)
     case AV_CODEC_ID_VP9:
       format = VFORMAT_VP9;
       break;
+    case AV_CODEC_ID_AVS2:
+      format = VFORMAT_AVS2;
+      break;
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
       format = VFORMAT_AVS;
@@ -525,6 +528,10 @@ static vdec_type_t codec_tag_to_vdec_type(unsigned int codec_tag)
       break;
     case AV_CODEC_ID_VP9:
       dec_type = VIDEO_DEC_FORMAT_VP9;
+      break;
+    case AV_CODEC_ID_AVS2:
+      // avs2
+      dec_type = VIDEO_DEC_FORMAT_AVS2;
       break;
     case AV_CODEC_ID_CAVS:
     case AV_CODEC_ID_AVS:
