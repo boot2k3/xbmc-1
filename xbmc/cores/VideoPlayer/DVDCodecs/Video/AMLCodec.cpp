@@ -577,6 +577,9 @@ void am_packet_release(am_packet_t *pkt)
 
 int check_in_pts(am_private_t *para, am_packet_t *pkt)
 {
+  if (para->stream_type == AM_STREAM_ES && INT64_0 != pkt->avpts)
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): pkt->avpts: %llx", __FUNCTION__, __LINE__,
+      pkt->avpts);
   if (para->stream_type == AM_STREAM_ES
     && INT64_0 != pkt->avpts
     && para->m_dll->codec_checkin_pts(pkt->codec, pkt->avpts) != 0)
@@ -1505,7 +1508,7 @@ CAMLCodec::CAMLCodec(CProcessInfo &processInfo)
   , m_speed(DVD_PLAYSPEED_NORMAL)
   , m_cur_pts(DVD_NOPTS_VALUE)
   , m_last_pts(DVD_NOPTS_VALUE)
-  , m_ptsOverflow(0)
+  , m_last_ptsOverflow(0)
   , m_bufferIndex(-1)
   , m_state(0)
   , m_frameSizeSum(0)
@@ -1558,6 +1561,8 @@ bool CAMLCodec::OpenDecoder(CDVDStreamInfo &hints)
   m_hints = hints;
   m_state = 0;
   m_frameSizes.clear();
+  m_last_ptsOverflow = 0;
+  m_ptsOverflows.clear();
   m_frameSizeSum = 0;
   m_hints.pClock = hints.pClock;
 
@@ -1799,8 +1804,6 @@ bool CAMLCodec::OpenDecoder(CDVDStreamInfo &hints)
 
   SysfsUtils::SetInt("/sys/class/video/freerun_mode", 1);
 
-  m_ptsOverflow = 0;
-
   m_opened = true;
   // vcodec is open, update speed if it was
   // changed before VideoPlayer called OpenDecoder.
@@ -1929,9 +1932,10 @@ void CAMLCodec::Reset()
 
   // reset some interal vars
   m_cur_pts = DVD_NOPTS_VALUE;
-  m_ptsOverflow = 0;
   m_state = 0;
   m_frameSizes.clear();
+  m_last_ptsOverflow = 0;
+  m_ptsOverflows.clear();
   m_frameSizeSum = 0;
 
   SetSpeed(m_speed);
@@ -1960,37 +1964,61 @@ bool CAMLCodec::AddData(uint8_t *pData, size_t iSize, double dts, double pts)
   // handle pts, including 31bit wrap, aml can only handle 31
   // bit pts as it uses an int in kernel.
   if (m_hints.ptsinvalid || pts == DVD_NOPTS_VALUE)
+  {
     am_private->am_pkt.avpts = INT64_0;
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): am_private->am_pkt.avpts: %llx", __FUNCTION__, __LINE__,
+      am_private->am_pkt.avpts);
+  }
   else
   {
     am_private->am_pkt.avpts = 0.5 + (pts * PTS_FREQ) / DVD_TIME_BASE;
     m_state |= STATE_HASPTS;
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): pts: %f, am_private->am_pkt.avpts: %llx", __FUNCTION__, __LINE__,
+      pts, am_private->am_pkt.avpts);
   }
 
   // handle dts, including 31bit wrap, aml can only handle 31
   // bit dts as it uses an int in kernel.
   if (dts == DVD_NOPTS_VALUE)
+  {
     am_private->am_pkt.avdts = am_private->am_pkt.avpts;
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): am_private->am_pkt.avdts: %llx", __FUNCTION__, __LINE__,
+      am_private->am_pkt.avdts);
+  }
   else
   {
     am_private->am_pkt.avdts = 0.5 + (dts * PTS_FREQ) / DVD_TIME_BASE;
 
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): dts: %f, am_private->am_pkt.avdts: %llx", __FUNCTION__, __LINE__,
+      dts, am_private->am_pkt.avdts);
+
     // For VC1 AML decoder uses PTS only on I-Frames
     if (am_private->am_pkt.avpts == INT64_0 && (((size_t)am_private->gcodec.param) & KEYFRAME_PTS_ONLY))
+    {
       am_private->am_pkt.avpts = am_private->am_pkt.avdts;
+      CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): am_private->am_pkt.avpts: %llx", __FUNCTION__, __LINE__,
+        am_private->am_pkt.avpts);
+    }
   }
 
   //Handle PTS overflow for arm
   if (sizeof(long) < 8)
   {
     if (am_private->am_pkt.avpts != INT64_0)
+      m_ptsOverflows.push_back(am_private->am_pkt.avpts & 0xFFFFFFFF80000000ULL);
+    else
+      m_ptsOverflows.push_back(0);
+
+    if (am_private->am_pkt.avpts != INT64_0)
     {
-      m_ptsOverflow = am_private->am_pkt.avpts & 0xFFFFFFFF80000000ULL;
+      CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): am_private->am_pkt.avpts: %llx", __FUNCTION__, __LINE__,
+        am_private->am_pkt.avpts);
       am_private->am_pkt.avpts &= 0x7FFFFFFF;
     }
     if (am_private->am_pkt.avdts != INT64_0)
     {
-      m_ptsOverflow = am_private->am_pkt.avdts & 0xFFFFFFFF80000000ULL;
+      CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): am_private->am_pkt.avdts: %llx", __FUNCTION__, __LINE__,
+        am_private->am_pkt.avdts);
       am_private->am_pkt.avdts &= 0x7FFFFFFF;
     }
   }
@@ -2037,7 +2065,7 @@ bool CAMLCodec::AddData(uint8_t *pData, size_t iSize, double dts, double pts)
       static_cast<unsigned int>(iSize),
       dts / DVD_TIME_BASE,
       pts / DVD_TIME_BASE,
-      m_ptsOverflow
+      m_ptsOverflows.back()
     );
   return true;
 }
@@ -2130,12 +2158,31 @@ DRAIN:
 
   m_last_pts = m_cur_pts;
 
-  m_cur_pts = m_ptsOverflow * 100 / 9 + (static_cast<int64_t>(vbuf.timestamp.tv_sec) << 32);
+  CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): m_last_pts: %llx", __FUNCTION__, __LINE__,
+    m_last_pts);
+
+  if (!m_ptsOverflows.empty())
+  {
+    m_last_ptsOverflow = m_ptsOverflows.front();
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): new m_last_ptsOverflow: %llx", __FUNCTION__, __LINE__,
+      m_last_ptsOverflow);
+    m_ptsOverflows.pop_front();
+  }
+
+  m_cur_pts = m_last_ptsOverflow * 100 / 9 + (static_cast<int64_t>(vbuf.timestamp.tv_sec) << 32);
   m_cur_pts += vbuf.timestamp.tv_usec & 0xFFFFFFFF;
 
+  CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): m_cur_pts: %llx, m_ptsOverflow used: %llx, m_ptsOverflows remain: %d, vbuf.timestamp.tv_sec: %x, vbuf.timestamp.tv_usec: %x", __FUNCTION__, __LINE__,
+    m_cur_pts, m_last_ptsOverflow, m_ptsOverflows.size(),  vbuf.timestamp.tv_sec, vbuf.timestamp.tv_usec);
+
   // since ptsOverflow is calculated from decoder input, we have to check at output if the new packets caused overflow increment
-  if ((m_cur_pts - m_hints.pClock->GetClock())  > 0x7F000000LL * 100 / 9)
+  int64_t dumy = m_hints.pClock->GetClock();
+  if ((m_cur_pts - dumy)  > 0x7F000000LL * 100 / 9)
+  {
     m_cur_pts -= 0x80000000LL * 100 / 9;
+    CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::%s(%d): m_cur_pts: %llx, m_hints.pClock->GetClock(): %llx", __FUNCTION__, __LINE__,
+      m_cur_pts, dumy);
+  }
 
   CLog::Log(LOGDEBUG, LOGAVTIMING, "CAMLCodec::DequeueBuffer: pts:%0.3f  idx:%d",
 			static_cast<double>(m_cur_pts) /  DVD_TIME_BASE, vbuf.index);
@@ -2149,8 +2196,8 @@ float CAMLCodec::GetTimeSize()
   struct buf_status bs;
   m_dll->codec_get_vbuf_state(&am_private->vcodec, &bs);
 
-  CLog::Log(LOGDEBUG, LOGVIDEO, "CAMLCodec::GetTimeSize: len:%d dl:%d fs:%u front:%u", 
-    m_frameSizes.size(), bs.data_len, m_frameSizeSum, m_frameSizes.front()); 
+  CLog::Log(LOGDEBUG, LOGVIDEO, "CAMLCodec::GetTimeSize: len:%d dl:%d fs:%u front:%u",
+    m_frameSizes.size(), bs.data_len, m_frameSizeSum, m_frameSizes.front());
   while (m_frameSizeSum >  (unsigned int)bs.data_len)
   {
     m_frameSizeSum -= m_frameSizes.front();
