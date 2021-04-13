@@ -540,7 +540,7 @@ bool CAESinkALSA::Initialize(AEAudioFormat &format, std::string &device)
   AMLDeviceType amlDeviceType = GetAMLDeviceType(device);
   if (amlDeviceType != AML_NONE)
   {
-    int aml_digital_codec = 0;
+    int aml_digital_codec = inconfig.channels > 2 ? 6 : 0;
 
     if (m_passthrough)
     {
