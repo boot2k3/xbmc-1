@@ -271,7 +271,7 @@ static const int64_t INT64_0 = 0x8000000000000000ULL;
 #define PLAYER_UNSUPPORT        (-(P_PRE|0x35))
 #define PLAYER_CHECK_CODEC_ERROR  (-(P_PRE|0x39))
 
-#define HDR_BUF_SIZE 1024
+#define HDR_BUF_SIZE 2048
 typedef struct hdr_buf {
     char *data;
     int size;
