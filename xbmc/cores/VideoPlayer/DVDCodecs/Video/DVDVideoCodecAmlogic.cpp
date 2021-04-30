@@ -120,6 +120,12 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
   m_hints = hints;
   m_hints.pClock = hints.pClock;
 
+  CLog::Log(
+      LOGINFO,
+      "CDVDVideoCodecAndroidMediaCodec::Open hints: Width %d x Height %d, Fpsrate %d / Fpsscale "
+      "%d, CodecID %d, Level %d, Profile %d, PTS_invalid %d, Tag %d, Extradata-Size: %d",
+      hints.width, hints.height, hints.fpsrate, hints.fpsscale, hints.codec, hints.level,
+      hints.profile, hints.ptsinvalid, hints.codec_tag, hints.extrasize);
   CLog::Log(LOGDEBUG, "%s::%s - codec %d profile:%d extra_size:%d fps:%d/%d", __MODULE_NAME__, __FUNCTION__, m_hints.codec, m_hints.profile, m_hints.extrasize, m_hints.fpsrate, m_hints.fpsscale);
 
   switch(m_hints.codec)
@@ -179,7 +185,18 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         m_h264_sequence->ratio  = m_hints.aspect;
       }
 
-      m_pFormatName = "am-h264";
+      if (m_hints.codec_tag == MKTAG('a', 'v', 'c', '1'))
+      {
+        m_pFormatName = "am-h264 avc";
+      }
+      else if (m_hints.codec_tag == MKTAG('A', 'V', 'C', '1'))
+      {
+        m_pFormatName = "am-h264 AVC1";
+      }
+      else
+      {
+        m_pFormatName = "am-h264";
+      }
       // convert h264-avcC to h264-annex-b as h264-avcC
       // under streamers can have issues when seeking.
       if (m_hints.extradata && *(uint8_t*)m_hints.extradata == 1)
@@ -215,7 +232,22 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
     case AV_CODEC_ID_MSMPEG4V3:
       if (m_hints.width <= CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(CSettings::SETTING_VIDEOPLAYER_USEAMCODECMPEG4))
         goto FAIL;
-      m_pFormatName = "am-mpeg4";
+      if (m_hints.codec_tag == MKTAG('X', 'V', 'I', 'D'))
+      {
+        m_pFormatName = "am-mpeg4 XVID";
+      }
+      else if (m_hints.codec_tag == MKTAG('D', 'I', 'V', 'X'))
+      {
+        m_pFormatName = "am-mpeg4 DIVX";
+      }
+      else if (m_hints.codec_tag == MKTAG('m', 'p', '4', 'v'))
+      {
+        m_pFormatName = "am-mpeg4 mp4v";
+      }
+      else
+      {
+        m_pFormatName = "am-mpeg4";
+      }
       break;
     case AV_CODEC_ID_H263:
     case AV_CODEC_ID_H263P:
@@ -272,7 +304,30 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         CLog::Log(LOGDEBUG, "%s::%s - HEVC 10-bit is supported only on S905 chips or newer", __MODULE_NAME__, __FUNCTION__);
         goto FAIL;
       }
-      m_pFormatName = "am-h265";
+      if (m_hints.codec_tag == MKTAG('d', 'v', 'h', 'e'))
+      {
+        m_pFormatName = "am-h265 dvhe";
+      }
+      else if (m_hints.codec_tag == MKTAG('d', 'v', 'h', '1'))
+      {
+        m_pFormatName = "am-h265 dvh1";
+      }
+      else if (m_hints.codec_tag == MKTAG('h', 'e', 'v', '1'))
+      {
+        m_pFormatName = "am-h265 hev1";
+      }
+      else if (m_hints.codec_tag == MKTAG('D', 'O', 'V', 'I'))
+      {
+        m_pFormatName = "am-h265 dovi";
+      }
+      else if (m_hints.codec_tag == MKTAG('H', 'D', 'M', 'V'))
+      {
+        m_pFormatName = "am-h265 HDMV";
+      }
+      else
+      {
+        m_pFormatName = "am-h265";
+      }
       m_bitstream = new CBitstreamConverter();
       m_bitstream->Open(m_hints.codec, (uint8_t*)m_hints.extradata, m_hints.extrasize, true);
       // make sure we do not leak the existing m_hints.extradata
