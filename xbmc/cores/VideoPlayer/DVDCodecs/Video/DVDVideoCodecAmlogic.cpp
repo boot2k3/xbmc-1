@@ -251,6 +251,9 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         goto FAIL;
       }
       m_pFormatName = "am-vp9";
+      free(m_hints.extradata);
+      m_hints.extradata = nullptr;
+      m_hints.extrasize = 0;
       break;
     case AV_CODEC_ID_HEVC:
       if (aml_support_hevc()) {
@@ -272,7 +275,18 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         CLog::Log(LOGDEBUG, "%s::%s - HEVC 10-bit is supported only on S905 chips or newer", __MODULE_NAME__, __FUNCTION__);
         goto FAIL;
       }
-      m_pFormatName = "am-h265";
+      if (m_hints.codec_tag == MKTAG('d', 'v', 'h', 'e'))
+      {
+        m_pFormatName = "am-dvhe";
+      }
+      else if (m_hints.codec_tag == MKTAG('d', 'v', 'h', '1'))
+      {
+        m_pFormatName = "am-dvh1";
+      }
+      else
+      {
+        m_pFormatName = "am-h265";
+      }
       m_bitstream = new CBitstreamConverter();
       m_bitstream->Open(m_hints.codec, (uint8_t*)m_hints.extradata, m_hints.extrasize, true);
       // make sure we do not leak the existing m_hints.extradata
