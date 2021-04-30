@@ -120,6 +120,12 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
   m_hints = hints;
   m_hints.pClock = hints.pClock;
 
+  CLog::Log(
+      LOGINFO,
+      "CDVDVideoCodecAndroidMediaCodec::Open hints: Width %d x Height %d, Fpsrate %d / Fpsscale "
+      "%d, CodecID %d, Level %d, Profile %d, PTS_invalid %d, Tag %d, Extradata-Size: %d",
+      hints.width, hints.height, hints.fpsrate, hints.fpsscale, hints.codec, hints.level,
+      hints.profile, hints.ptsinvalid, hints.codec_tag, hints.extrasize);
   CLog::Log(LOGDEBUG, "%s::%s - codec %d profile:%d extra_size:%d fps:%d/%d", __MODULE_NAME__, __FUNCTION__, m_hints.codec, m_hints.profile, m_hints.extrasize, m_hints.fpsrate, m_hints.fpsscale);
 
   switch(m_hints.codec)
