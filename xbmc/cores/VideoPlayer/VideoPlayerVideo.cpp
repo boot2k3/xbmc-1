@@ -113,7 +113,9 @@ bool CVideoPlayerVideo::OpenStream(CDVDStreamInfo hint)
         hint.codec == AV_CODEC_ID_HEVC ||
         hint.codec == AV_CODEC_ID_MPEG4 ||
         hint.codec == AV_CODEC_ID_WMV3 ||
-        hint.codec == AV_CODEC_ID_VC1)
+        hint.codec == AV_CODEC_ID_VC1 ||
+        hint.codec == AV_CODEC_ID_VP9 ||
+        hint.codec == AV_CODEC_ID_AVS2)
       return false;
   }
 
