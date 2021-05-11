@@ -2197,15 +2197,15 @@ CDVDVideoCodec::VCReturn CAMLCodec::GetPicture(VideoPicture *pVideoPicture)
     CLog::Log(LOGDEBUG, LOGVIDEO, "CAMLCodec::GetPicture: index: %u, pts: %0.3lf, dur:%0.0lfms ar:%0.2f",
 		m_bufferIndex, pVideoPicture->pts / DVD_TIME_BASE, pVideoPicture->iDuration / 1000, m_hints.aspect);
 
+    if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+		m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+
     return CDVDVideoCodec::VC_PICTURE;
   }
   else if (m_drain)
     return CDVDVideoCodec::VC_EOF;
   else if (timesize < 1.0)
     return CDVDVideoCodec::VC_BUFFER;
-
-  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
-    m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
 
   return CDVDVideoCodec::VC_NONE;
 }
