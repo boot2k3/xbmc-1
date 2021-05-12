@@ -18,6 +18,7 @@
 #include "settings/SettingsComponent.h"
 #include "utils/MathUtils.h"
 #include "utils/log.h"
+#include "utils/SysfsUtils.h"
 #include "windowing/GraphicContext.h"
 #include "windowing/WinSystem.h"
 
@@ -343,6 +344,8 @@ void CVideoPlayerVideo::Process()
     int iQueueTimeOut = (int)(m_stalled ? frametime : frametime * 10) / 1000;
     int iPriority = 0;
 
+	std::string vfmt;
+
     if (m_syncState == IDVDStreamPlayer::SYNC_WAITSYNC)
       iPriority = 1;
 
@@ -370,10 +373,25 @@ void CVideoPlayerVideo::Process()
       if (m_outputSate == OUTPUT_AGAIN &&
           m_picture.videoBuffer)
       {
+		if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+		{
+			m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+		}
+		CLog::Log(LOGDEBUG, "00 MSGQ_TIMEOUT OUTPUT_AGAIN 01 vfmt attempt frame_format: %s", vfmt);
         m_outputSate = OutputPicture(&m_picture);
+		if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+		{
+			m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+		}
+		CLog::Log(LOGDEBUG, "00 MSGQ_TIMEOUT OUTPUT_AGAIN 02 vfmt attempt frame_format: %s", vfmt);
         if (m_outputSate == OUTPUT_AGAIN)
         {
           onlyPrioMsgs = true;
+		  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+		  {
+			m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+		  }
+		  CLog::Log(LOGDEBUG, "00 MSGQ_TIMEOUT OUTPUT_AGAIN 03 vfmt attempt frame_format: %s", vfmt);
           continue;
         }
       }
@@ -430,6 +448,11 @@ void CVideoPlayerVideo::Process()
       else
         SendMessage(pMsg->Acquire(), 1); /* push back as prio message, to process other prio messages */
       m_droppingStats.Reset();
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "0 CDVDMsg::GENERAL_SYNCHRONIZE vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_RESYNC))
     {
@@ -441,11 +464,21 @@ void CVideoPlayerVideo::Process()
       m_renderManager.ShowVideo(true);
 
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::GENERAL_RESYNC(%f)", pts);
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "1 CDVDMsg::GENERAL_RESYNC vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::VIDEO_SET_ASPECT))
     {
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::VIDEO_SET_ASPECT");
       m_fForcedAspectRatio = static_cast<float>(*static_cast<CDVDMsgDouble*>(pMsg));
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "2 CDVDMsg::VIDEO_SET_ASPECT vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_RESET))
     {
@@ -461,6 +494,11 @@ void CVideoPlayerVideo::Process()
       m_syncState = IDVDStreamPlayer::SYNC_STARTING;
       m_renderManager.ShowVideo(false);
       m_rewindStalled = false;
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "3 CDVDMsg::GENERAL_RESET vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_FLUSH)) // private message sent by (CVideoPlayerVideo::Flush())
     {
@@ -491,6 +529,11 @@ void CVideoPlayerVideo::Process()
 
       m_renderManager.DiscardBuffer();
       FlushMessages();
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "4 CDVDMsg::GENERAL_FLUSH vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::PLAYER_SETSPEED))
     {
@@ -498,6 +541,11 @@ void CVideoPlayerVideo::Process()
       if (m_pVideoCodec)
         m_pVideoCodec->SetSpeed(m_speed);
       m_droppingStats.Reset();
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "5 CDVDMsg::PLAYER_SETSPEED vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_STREAMCHANGE))
     {
@@ -519,6 +567,11 @@ void CVideoPlayerVideo::Process()
         m_picture.videoBuffer->Release();
         m_picture.videoBuffer = nullptr;
       }
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "6 CDVDMsg::GENERAL_STREAMCHANGE vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::VIDEO_DRAIN))
     {
@@ -528,11 +581,21 @@ void CVideoPlayerVideo::Process()
         if (!ProcessDecoderOutput(frametime, pts))
           break;
       }
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "7 CDVDMsg::VIDEO_DRAIN vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_PAUSE))
     {
       m_paused = static_cast<CDVDMsgBool*>(pMsg)->m_value;
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::GENERAL_PAUSE: %d", m_paused);
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "8 CDVDMsg::GENERAL_PAUSE vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::PLAYER_REQUEST_STATE))
     {
@@ -540,6 +603,11 @@ void CVideoPlayerVideo::Process()
       msg.player = VideoPlayer_VIDEO;
       msg.syncState = m_syncState;
       m_messageParent.Put(new CDVDMsgType<SStateMsg>(CDVDMsg::PLAYER_REPORT_STATE, msg));
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "9 CDVDMsg::PLAYER_REQUEST_STATE vfmt attempt frame_format: %s", vfmt);
     }
     else if (pMsg->IsType(CDVDMsg::DEMUXER_PACKET))
     {
@@ -608,7 +676,18 @@ void CVideoPlayerVideo::Process()
         SendMessageBack(pMsg->Acquire());
         onlyPrioMsgs = true;
       }
+	  if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	  {
+		  m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	  }
+	  CLog::Log(LOGDEBUG, "10 CDVDMsg::DEMUXER_PACKET vfmt attempt frame_format: %s", vfmt);
     }
+	
+	if (!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+	{
+		m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+	}
+	CLog::Log(LOGDEBUG, "CVideoPlayerVideo::Process vfmt attempt frame_format: %s", vfmt);
 
     // all data is used by the decoder, we can safely free it now
     pMsg->Release();
