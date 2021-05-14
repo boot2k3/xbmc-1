@@ -18,6 +18,7 @@
 #include "settings/SettingsComponent.h"
 #include "utils/MathUtils.h"
 #include "utils/log.h"
+#include "utils/SysfsUtils.h"
 #include "windowing/GraphicContext.h"
 #include "windowing/WinSystem.h"
 
@@ -332,6 +333,9 @@ void CVideoPlayerVideo::Process()
   int iDropDirective;
   bool onlyPrioMsgs = false;
 
+  std::string vfmt;
+  int vfmtCheckCount = 0;
+
   m_videoStats.Start();
   m_droppingStats.Reset();
   m_iDroppedFrames = 0;
@@ -371,6 +375,8 @@ void CVideoPlayerVideo::Process()
           m_picture.videoBuffer)
       {
         m_outputSate = OutputPicture(&m_picture);
+        vfmtCheckCount = 2;
+        CLog::Log(LOGDEBUG, "CVideoPlayerVideo - OUTPUT_AGAIN - vfmt, interlace should be checked.");
         if (m_outputSate == OUTPUT_AGAIN)
         {
           onlyPrioMsgs = true;
@@ -441,6 +447,8 @@ void CVideoPlayerVideo::Process()
       m_renderManager.ShowVideo(true);
 
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::GENERAL_RESYNC(%f)", pts);
+      vfmtCheckCount = 2;
+      CLog::Log(LOGDEBUG, "CVideoPlayerVideo - vfmt, interlace should be checked.");
     }
     else if (pMsg->IsType(CDVDMsg::VIDEO_SET_ASPECT))
     {
@@ -601,6 +609,16 @@ void CVideoPlayerVideo::Process()
         if (ProcessDecoderOutput(frametime, pts))
         {
           onlyPrioMsgs = true;
+        }
+
+        if (vfmtCheckCount != 0)
+        {
+          if(!SysfsUtils::GetString("/sys/class/deinterlace/di0/frame_format", vfmt) && (vfmt.size() > 4))
+          {
+            m_processInfo.SetVideoInterlaced(vfmt.compare("progressive"));
+          }
+          vfmtCheckCount--;
+          CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::DEMUXER_PACKET - checking interlace vfmt: %s", vfmt);
         }
       }
       else
