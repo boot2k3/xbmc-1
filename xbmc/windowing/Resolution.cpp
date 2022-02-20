@@ -139,6 +139,12 @@ void CResolutionUtils::FindResolutionFromWhitelist(float fps, int width, int hei
 
     // allow resolutions that are exact and have the correct refresh rate
     // allow macroblock alignement / padding errors (e.g. 1080 mod16 == 8)
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] Checking an exact resolution with an exact refresh rate {} ({})",
+              info.strMode, i);
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] desktop_info.iScreenWidth {}, height {}, info.iScreenHeight {}, width {}, info.iScreenWidth {}, fps {}, info.fRefreshRate {})",
+              desktop_info.iScreenWidth, height, info.iScreenHeight, width, info.iScreenWidth, fps, info.fRefreshRate);
     if (((height == info.iScreenHeight && width <= info.iScreenWidth + 8) ||
          (width == info.iScreenWidth && height <= info.iScreenHeight + 8)) &&
         (info.dwFlags & D3DPRESENTFLAG_MODEMASK) == (curr.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
@@ -245,6 +251,12 @@ void CResolutionUtils::FindResolutionFromWhitelist(float fps, int width, int hei
     const RESOLUTION_INFO info = CServiceBroker::GetWinSystem()->GetGfxContext().GetResInfo(i);
 
     // allow resolutions that are desktop resolution but have the correct refresh rate
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] Checking an exact resolution with an exact refresh rate {} ({})",
+              info.strMode, i);
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] desktop_info.iScreenWidth {}, width {}, fps {}, info.fRefreshRate {})",
+              desktop_info.iScreenWidth, width, fps, info.fRefreshRate);
     if (info.iScreenWidth == desktop_info.iScreenWidth &&
         (info.dwFlags & D3DPRESENTFLAG_MODEMASK) == (desktop_info.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
         MathUtils::FloatEquals(info.fRefreshRate, fps, 0.01f))
