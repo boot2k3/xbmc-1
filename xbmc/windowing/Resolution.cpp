@@ -131,6 +131,7 @@ void CResolutionUtils::FindResolutionFromWhitelist(float fps, int width, int hei
 
   unsigned int penalty = std::numeric_limits<unsigned int>::max();
   bool found = false;
+  bool found1 = false;
 
   for (const auto& mode : indexList)
   {
@@ -242,6 +243,45 @@ void CResolutionUtils::FindResolutionFromWhitelist(float fps, int width, int hei
     CLog::Log(LOGDEBUG, "[WHITELIST] No match for a resolution with a 3:2 pulldown refresh rate");
   }
 
+  CLog::Log(LOGDEBUG, "[WHITELIST] Searching for a closest resolution with an exact refresh rate");
+
+  for (const auto& mode : indexList)
+  {
+    auto i = CDisplaySettings::GetInstance().GetResFromString(mode.asString());
+    const RESOLUTION_INFO info = CServiceBroker::GetWinSystem()->GetGfxContext().GetResInfo(i);
+
+    // allow resolutions that are closest resolutions but have the correct refresh rate
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] Checking an exact resolution with an exact refresh rate {} ({})",
+              info.strMode, i);
+    CLog::Log(LOGDEBUG,
+              "[WHITELIST] height {}, info.iScreenHeight {}, width {}, info.iScreenWidth {}, fps {}, info.fRefreshRate {})",
+              height, info.iScreenHeight, width, info.iScreenWidth, fps, info.fRefreshRate);
+    if ((height <= info.iScreenHeight + 8) && (width <= info.iScreenWidth + 8) && !found &&
+        (info.dwFlags & D3DPRESENTFLAG_MODEMASK) == (desktop_info.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
+        MathUtils::FloatEquals(info.fRefreshRate, fps, 0.01f))
+    {
+      resolution = i;
+      found = true;
+      CLog::Log(LOGDEBUG,
+                "[WHITELIST] Matched a closest resolution with an exact refresh rate {} ({})",
+                info.strMode, i);
+    }
+    else if (height > info.iScreenHeight && width > info.iScreenWidth && !found &&
+             (info.dwFlags & D3DPRESENTFLAG_MODEMASK) == (desktop_info.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
+             MathUtils::FloatEquals(info.fRefreshRate, fps, 0.01f))
+    {
+      resolution = i;
+      found1 = true;
+      CLog::Log(LOGDEBUG,
+                "[WHITELIST] Matched a closest resolution with an exact refresh rate {} ({})",
+                info.strMode, i);
+    } 
+  }
+  if (found || found1)
+    return;
+
+  CLog::Log(LOGDEBUG, "[WHITELIST] No match for a closest resolution with an exact refresh rate");
 
   CLog::Log(LOGDEBUG, "[WHITELIST] Searching for a desktop resolution with an exact refresh rate");
 
