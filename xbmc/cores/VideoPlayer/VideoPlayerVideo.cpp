@@ -375,15 +375,18 @@ void CVideoPlayerVideo::Process()
       if (m_outputSate == OUTPUT_AGAIN &&
           m_picture.videoBuffer)
       {
+        CLog::Log(LOGDEBUG, "Sync: 00 MSGQ_TIMEOUT OUTPUT_AGAIN 01");
         m_outputSate = OutputPicture(&m_picture);
         if (m_processInfo.IsVideoHwDecoder())
         {
           vfmtCheckCount = 16;
           CLog::Log(LOGDEBUG, "CVideoPlayerVideo - OUTPUT_AGAIN - vfmt, interlace should be checked.");
+          CLog::Log(LOGDEBUG, "Sync: 00 MSGQ_TIMEOUT OUTPUT_AGAIN 02");
         }
         if (m_outputSate == OUTPUT_AGAIN)
         {
           onlyPrioMsgs = true;
+          CLog::Log(LOGDEBUG, "Sync: 00 MSGQ_TIMEOUT OUTPUT_AGAIN 03");
           continue;
         }
       }
@@ -440,6 +443,7 @@ void CVideoPlayerVideo::Process()
       else
         SendMessage(pMsg->Acquire(), 1); /* push back as prio message, to process other prio messages */
       m_droppingStats.Reset();
+      CLog::Log(LOGDEBUG, "Sync: 0 CDVDMsg::GENERAL_SYNCHRONIZE");
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_RESYNC))
     {
@@ -451,6 +455,7 @@ void CVideoPlayerVideo::Process()
       m_renderManager.ShowVideo(true);
 
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::GENERAL_RESYNC(%f)", pts);
+      CLog::Log(LOGDEBUG, "Sync: 1 CDVDMsg::GENERAL_RESYNC");
       if (m_processInfo.IsVideoHwDecoder())
       {
         vfmtCheckCount = 16;
@@ -461,6 +466,7 @@ void CVideoPlayerVideo::Process()
     {
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::VIDEO_SET_ASPECT");
       m_fForcedAspectRatio = static_cast<float>(*static_cast<CDVDMsgDouble*>(pMsg));
+      CLog::Log(LOGDEBUG, "Sync: 2 CDVDMsg::VIDEO_SET_ASPECT");
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_RESET))
     {
@@ -476,6 +482,7 @@ void CVideoPlayerVideo::Process()
       m_syncState = IDVDStreamPlayer::SYNC_STARTING;
       m_renderManager.ShowVideo(false);
       m_rewindStalled = false;
+      CLog::Log(LOGDEBUG, "Sync: 3 CDVDMsg::GENERAL_RESET");
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_FLUSH)) // private message sent by (CVideoPlayerVideo::Flush())
     {
@@ -506,6 +513,7 @@ void CVideoPlayerVideo::Process()
 
       m_renderManager.DiscardBuffer();
       FlushMessages();
+      CLog::Log(LOGDEBUG, "Sync: 4 CDVDMsg::GENERAL_FLUSH");
     }
     else if (pMsg->IsType(CDVDMsg::PLAYER_SETSPEED))
     {
@@ -513,6 +521,7 @@ void CVideoPlayerVideo::Process()
       if (m_pVideoCodec)
         m_pVideoCodec->SetSpeed(m_speed);
       m_droppingStats.Reset();
+      CLog::Log(LOGDEBUG, "Sync: 5 CDVDMsg::PLAYER_SETSPEED");
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_STREAMCHANGE))
     {
@@ -534,20 +543,24 @@ void CVideoPlayerVideo::Process()
         m_picture.videoBuffer->Release();
         m_picture.videoBuffer = nullptr;
       }
+      CLog::Log(LOGDEBUG, "Sync: 6 CDVDMsg::GENERAL_STREAMCHANGE");
     }
     else if (pMsg->IsType(CDVDMsg::VIDEO_DRAIN))
     {
       while (!m_bStop && m_pVideoCodec)
       {
         m_pVideoCodec->SetCodecControl(DVD_CODEC_CTRL_DRAIN);
+        CLog::Log(LOGDEBUG, "Sync: 7 CDVDMsg::VIDEO_DRAIN 0");
         if (!ProcessDecoderOutput(frametime, pts))
           break;
       }
+      CLog::Log(LOGDEBUG, "Sync: 7 CDVDMsg::VIDEO_DRAIN 1");
     }
     else if (pMsg->IsType(CDVDMsg::GENERAL_PAUSE))
     {
       m_paused = static_cast<CDVDMsgBool*>(pMsg)->m_value;
       CLog::Log(LOGDEBUG, "CVideoPlayerVideo - CDVDMsg::GENERAL_PAUSE: %d", m_paused);
+      CLog::Log(LOGDEBUG, "Sync: 8 CDVDMsg::GENERAL_PAUSE");
     }
     else if (pMsg->IsType(CDVDMsg::PLAYER_REQUEST_STATE))
     {
@@ -555,6 +568,7 @@ void CVideoPlayerVideo::Process()
       msg.player = VideoPlayer_VIDEO;
       msg.syncState = m_syncState;
       m_messageParent.Put(new CDVDMsgType<SStateMsg>(CDVDMsg::PLAYER_REPORT_STATE, msg));
+      CLog::Log(LOGDEBUG, "Sync: 9 CDVDMsg::PLAYER_REQUEST_STATE");
     }
     else if (pMsg->IsType(CDVDMsg::DEMUXER_PACKET))
     {
@@ -633,7 +647,9 @@ void CVideoPlayerVideo::Process()
         SendMessageBack(pMsg->Acquire());
         onlyPrioMsgs = true;
       }
+      CLog::Log(LOGDEBUG, "Sync: 10 CDVDMsg::DEMUXER_PACKET");
     }
+    CLog::Log(LOGDEBUG, "Sync: CVideoPlayerVideo::Process");
 
     // all data is used by the decoder, we can safely free it now
     pMsg->Release();
