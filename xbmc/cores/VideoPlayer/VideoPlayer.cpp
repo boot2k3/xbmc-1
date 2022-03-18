@@ -2222,9 +2222,17 @@ bool CVideoPlayer::CheckContinuity(CCurrentStream& current, DemuxPacket* pPacket
 
   double mindts = DVD_NOPTS_VALUE, maxdts = DVD_NOPTS_VALUE;
   UpdateLimits(mindts, maxdts, m_CurrentAudio.dts);
+  CLog::Log(LOGDEBUG, "CVideoPlayer::CheckContinuity - UpdateLimits 1 mindts :%f, maxdts:%f, m_CurrentAudio.dts:%f"
+                            , mindts, maxdts, m_CurrentAudio.dts);
   UpdateLimits(mindts, maxdts, m_CurrentVideo.dts);
+  CLog::Log(LOGDEBUG, "CVideoPlayer::CheckContinuity - UpdateLimits 1 mindts :%f, maxdts:%f, m_CurrentVideo.dts:%f"
+                            , mindts, maxdts, m_CurrentVideo.dts);
   UpdateLimits(mindts, maxdts, m_CurrentAudio.dts_end());
+  CLog::Log(LOGDEBUG, "CVideoPlayer::CheckContinuity - UpdateLimits 1 mindts :%f, maxdts:%f, m_CurrentAudio.dts_end:%f"
+                            , mindts, maxdts, m_CurrentAudio.dts_end());
   UpdateLimits(mindts, maxdts, m_CurrentVideo.dts_end());
+  CLog::Log(LOGDEBUG, "CVideoPlayer::CheckContinuity - UpdateLimits 1 mindts :%f, maxdts:%f, m_CurrentVideo.dts_end:%f"
+                            , mindts, maxdts, m_CurrentVideo.dts_end);
 
   /* if we don't have max and min, we can't do anything more */
   if( mindts == DVD_NOPTS_VALUE || maxdts == DVD_NOPTS_VALUE )
