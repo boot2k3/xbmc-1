@@ -2640,7 +2640,7 @@ void CActiveAE::LoadSettings()
   m_settings.resampleQuality = static_cast<AEQuality>(settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_PROCESSQUALITY));
   m_settings.atempoThreshold = settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_ATEMPOTHRESHOLD) / 100.0;
   m_settings.streamNoise = settings->GetBool(CSettings::SETTING_AUDIOOUTPUT_STREAMNOISE);
-  m_settings.silenceTimeout = settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_STREAMSILENCE) * 60000;
+  m_settings.silenceTimeout = settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_STREAMSILENCE) ? settings->GetInt(CSettings::SETTING_AUDIOOUTPUT_STREAMSILENCE) * 60000 : 1000;
 }
 
 void CActiveAE::Start()
