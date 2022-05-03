@@ -619,7 +619,10 @@ void CAESinkALSA::aml_configure_simple_control(std::string &device, const enum I
 
     switch (devType) {
       case AE_DEVTYPE_HDMI:
-        spdif_id = SPDIF_B;
+        if amlDeviceType == AML_AUGESOUND
+          spdif_id = SPDIF_B;
+	else
+          spdif_id = SPDIF_A;
         break;
       default:
         spdif_id = SPDIF_A;
