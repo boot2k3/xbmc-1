@@ -273,6 +273,7 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
       m_pFormatName = "am-vc1";
       break;
     case AV_CODEC_ID_WMV3:
+    {
       if (m_hints.extradata.GetSize() == 4 || m_hints.extradata.GetSize() == 5)
       {
         // Convert to SMPTE 421M-2006 Annex-L
@@ -296,6 +297,7 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
       }
       m_pFormatName = "am-wmv3";
       break;
+    }
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
       m_pFormatName = "am-avs";
