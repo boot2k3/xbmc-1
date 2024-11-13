@@ -16,6 +16,7 @@
 #include "AMLCodec.h"
 #include "ServiceBroker.h"
 #include "utils/AMLUtils.h"
+#include "utils/BitstreamWriter.h"
 #include "utils/log.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
