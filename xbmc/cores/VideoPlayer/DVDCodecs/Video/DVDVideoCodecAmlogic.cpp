@@ -231,7 +231,6 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
       CLog::Log(LOGDEBUG, "{}::{} - amcodec does not support RMVB", __MODULE_NAME__, __FUNCTION__);
       goto FAIL;
     case AV_CODEC_ID_VC1:
-    case AV_CODEC_ID_WMV3:
       if (m_hints.width <= CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
         CSettings::SETTING_VIDEOPLAYER_USEAMCODECVC1))
       {
@@ -251,18 +250,50 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
           goto FAIL;
         }
       }
+      if (m_hints.extradata.GetSize() < 16)
+        goto FAIL;
 
-      switch(m_hints.codec)
+      // Reduce extradata to first SEQ header
+      unsigned int seq_offset = 0;
+      for (; seq_offset <= m_hints.extradata.GetSize() - 4; ++seq_offset)
       {
-        case AV_CODEC_ID_VC1:
-          m_pFormatName = "am-vc1";
+        const uint8_t* ptr = m_hints.extradata.GetData() + seq_offset;
+        if (ptr[0] == 0x00 && ptr[1] == 0x00 && ptr[2] == 0x01 && ptr[3] == 0x0f)
           break;
-        case AV_CODEC_ID_WMV3:
-          m_pFormatName = "am-wmv3";
-          break;
-        default:
-          goto FAIL;
       }
+      if (seq_offset > m_hints.extradata.GetSize() - 4)
+        goto FAIL;
+
+      if (seq_offset)
+      {
+        hints.extradata = FFmpegExtraData(hints.extradata.GetData() + seq_offset,
+                                          hints.extradata.GetSize() - seq_offset);
+      }
+      m_pFormatName = "am-vc1";
+      break;
+    case AV_CODEC_ID_WMV3:
+      if (m_hints.extradata.GetSize() == 4 || m_hints.extradata.GetSize() == 5)
+      {
+        // Convert to SMPTE 421M-2006 Annex-L
+        static uint8_t annexL_hdr1[] = {0x8e, 0x01, 0x00, 0xc5, 0x04, 0x00, 0x00, 0x00};
+        static uint8_t annexL_hdr2[] = {0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        m_hints.extradata = FFmpegExtraData(36);
+
+        unsigned int offset = 0;
+        char buf[4];
+        memcpy(m_hints.extradata.GetData(), annexL_hdr1, sizeof(annexL_hdr1));
+        offset += sizeof(annexL_hdr1);
+        memcpy(m_hints.extradata.GetData() + offset, hints.extradata.GetData(), 4);
+        offset += 4;
+        BS_WL32(buf, hints.height);
+        memcpy(m_hints.extradata.GetData() + offset, buf, 4);
+        offset += 4;
+        BS_WL32(buf, hints.width);
+        memcpy(m_hints.extradata.GetData() + offset, buf, 4);
+        offset += 4;
+        memcpy(m_hints.extradata.GetData() + offset, annexL_hdr2, sizeof(annexL_hdr2));
+      }
+      m_pFormatName = "am-wmv3";
       break;
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
