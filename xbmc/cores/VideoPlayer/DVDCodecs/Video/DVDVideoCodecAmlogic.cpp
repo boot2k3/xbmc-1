@@ -251,6 +251,7 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
           goto FAIL;
         }
       }
+    {
       if (m_hints.extradata.GetSize() < 16)
         goto FAIL;
 
@@ -270,6 +271,7 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         hints.extradata = FFmpegExtraData(hints.extradata.GetData() + seq_offset,
                                           hints.extradata.GetSize() - seq_offset);
       }
+    }
       m_pFormatName = "am-vc1";
       break;
     case AV_CODEC_ID_WMV3:
@@ -295,9 +297,9 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         offset += 4;
         memcpy(m_hints.extradata.GetData() + offset, annexL_hdr2, sizeof(annexL_hdr2));
       }
+    }
       m_pFormatName = "am-wmv3";
       break;
-    }
     case AV_CODEC_ID_AVS:
     case AV_CODEC_ID_CAVS:
       m_pFormatName = "am-avs";
