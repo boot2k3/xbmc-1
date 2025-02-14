@@ -16,6 +16,7 @@
 #include "AMLCodec.h"
 #include "ServiceBroker.h"
 #include "utils/AMLUtils.h"
+#include "utils/BitstreamWriter.h"
 #include "utils/log.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/Settings.h"
@@ -23,6 +24,11 @@
 #include "threads/Thread.h"
 
 #define __MODULE_NAME__ "DVDVideoCodecAmlogic"
+
+extern "C"
+{
+#include <libavutil/intreadwrite.h>
+}
 
 CAMLVideoBufferPool::~CAMLVideoBufferPool()
 {
