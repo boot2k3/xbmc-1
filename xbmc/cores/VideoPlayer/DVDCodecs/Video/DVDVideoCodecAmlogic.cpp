@@ -252,6 +252,28 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         }
       }
 
+      if (m_hints.extradata.GetSize() == 4 || m_hints.extradata.GetSize() == 5)
+      {
+        // Convert to SMPTE 421M-2006 Annex-L
+        static uint8_t annexL_hdr1[] = {0x8e, 0x01, 0x00, 0xc5, 0x04, 0x00, 0x00, 0x00};
+        static uint8_t annexL_hdr2[] = {0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        m_hints.extradata = FFmpegExtraData(36);
+
+        unsigned int offset = 0;
+        char buf[4];
+        memcpy(m_hints.extradata.GetData(), annexL_hdr1, sizeof(annexL_hdr1));
+        offset += sizeof(annexL_hdr1);
+        memcpy(m_hints.extradata.GetData() + offset, hints.extradata.GetData(), 4);
+        offset += 4;
+        AV_WL32(buf, hints.height);
+        memcpy(m_hints.extradata.GetData() + offset, buf, 4);
+        offset += 4;
+        AV_WL32(buf, hints.width);
+        memcpy(m_hints.extradata.GetData() + offset, buf, 4);
+        offset += 4;
+        memcpy(m_hints.extradata.GetData() + offset, annexL_hdr2, sizeof(annexL_hdr2));
+      }
+
       switch(m_hints.codec)
       {
         case AV_CODEC_ID_VC1:
