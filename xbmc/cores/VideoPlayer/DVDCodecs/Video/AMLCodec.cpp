@@ -2800,6 +2800,30 @@ CDVDVideoCodec::VCReturn CAMLCodec::GetPicture(VideoPicture *pVideoPicture)
   int ret = EAGAIN;
   int data_len, free_len, size;
   float buffer_level = GetBufferLevel(0, data_len, free_len, size);
+
+  static int drain_counter = 0;
+  static std::chrono::steady_clock::time_point last_drain_time = std::chrono::steady_clock::now();
+
+  if (m_drain)
+  {
+    drain_counter++;
+    auto now = std::chrono::steady_clock::now();
+    auto time_since_last = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_drain_time).count();
+
+    // Первые 15 вызовов или если данных мало — успокаиваем цикл
+    if (drain_counter < 15 || (data_len < 8192 && time_since_last < 8))
+    {
+      usleep(4500);                    // 4.5 мс — оптимально для большинства устройств
+      last_drain_time = now;
+      return CDVDVideoCodec::VC_NONE;
+    }
+  }
+  else
+  {
+    drain_counter = 0;
+    last_drain_time = std::chrono::steady_clock::now();
+  }
+
   std::chrono::milliseconds elapsed_since_last_frame(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()
     - m_tp_last_frame).count());
   bool streambuffer(am_private->gcodec.dec_mode == STREAM_TYPE_STREAM);
