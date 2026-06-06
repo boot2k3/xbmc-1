@@ -2841,15 +2841,26 @@ CDVDVideoCodec::VCReturn CAMLCodec::GetPicture(VideoPicture *pVideoPicture)
     return CDVDVideoCodec::VC_PICTURE;
   }
   else if (m_drain && m_buffer_level_ready && data_len == 0)
+  {
+    m_drain = false;
     return CDVDVideoCodec::VC_EOF;
+  }
   else if (buffer_level > (streambuffer ? 100.0f : 10.0f))
     return CDVDVideoCodec::VC_NONE;
   else if (ret != EAGAIN || elapsed_since_last_frame > std::chrono::seconds(m_decoder_timeout))
   {
+    CLog::Log(LOGERROR, "CAMLCodec::GetPicture: data_len, free_len, size, m_drain, m_buffer_level_ready: {:d}, {:d}, {:d}, {:d}, {:d})",
+      data_len, free_len, size, m_drain, m_buffer_level_ready);
     CLog::Log(LOGERROR, "CAMLCodec::GetPicture: time elapsed since last frame: {:d}ms ({:d}:{})",
       elapsed_since_last_frame.count(), ret, strerror(ret));
     m_tp_last_frame = std::chrono::system_clock::now();
-    return CDVDVideoCodec::VC_FLUSHED;
+    if (!m_buffer_level_ready || data_len == 0)
+    {
+      m_drain = false;
+      return CDVDVideoCodec::VC_EOF;
+    }
+    else
+      return CDVDVideoCodec::VC_FLUSHED;
   }
 
   return CDVDVideoCodec::VC_BUFFER;
