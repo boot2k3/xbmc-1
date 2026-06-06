@@ -2542,6 +2542,11 @@ bool CAMLCodec::AddData(uint8_t *pData, size_t iSize, double dts, double pts)
   float new_buffer_level = GetBufferLevel(chunk_size, data_len, free_len, size);
   bool streambuffer(am_private->gcodec.dec_mode == STREAM_TYPE_STREAM);
 
+  if (m_drain && iSize == 0)
+  {
+    CLog::Log(LOGDEBUG, "CAMLCodec::AddData: drain zero packet received - forcing flush");
+  }
+
   if (!m_buffer_level_ready)
   {
     m_buffer_level_ready = (streambuffer ? (new_buffer_level > 90.0f) : (new_buffer_level > 5.0f));
@@ -2562,17 +2567,20 @@ bool CAMLCodec::AddData(uint8_t *pData, size_t iSize, double dts, double pts)
 
   if (!m_opened || !pData || free_len == 0 || new_buffer_level >= 95.0f)
   {
-    CLog::Log(LOGDEBUG, LOGVIDEO,
-      "CAMLCodec::{}: skip add data dl:{:d} fl:{:d} sz:{:d}({:d}) lv:{:.1f}% dts:{:.3f} pts:{:.3f}", __FUNCTION__,
-      data_len,
-      free_len,
-      static_cast<unsigned int>(iSize),
-      chunk_size,
-      new_buffer_level,
-      dts / DVD_TIME_BASE,
-      pts / DVD_TIME_BASE
-    );
-    return false;
+    if (!(m_drain && iSize == 0))
+    {
+      CLog::Log(LOGDEBUG, LOGVIDEO,
+        "CAMLCodec::{}: skip add data dl:{:d} fl:{:d} sz:{:d}({:d}) lv:{:.1f}% dts:{:.3f} pts:{:.3f}", __FUNCTION__,
+        data_len,
+        free_len,
+        static_cast<unsigned int>(iSize),
+        chunk_size,
+        new_buffer_level,
+        dts / DVD_TIME_BASE,
+        pts / DVD_TIME_BASE
+      );
+    }
+    return (m_drain && iSize == 0) ? true : false;
   }
 
   if (am_private->hdr_buf.size > 0)
@@ -2671,7 +2679,7 @@ bool CAMLCodec::AddData(uint8_t *pData, size_t iSize, double dts, double pts)
   if (iSize > 50000)
     usleep(2000); // wait 2ms to process larger packets
 
-  if (iSize > 0)
+  if (iSize > 0 || (m_drain && iSize == 0))
     CLog::Log(LOGDEBUG, LOGVIDEO,
       "CAMLCodec::{}: dl:{:d} fl:{:d} sz:{:d}({:d}) lv:{:.1f}% dts:{:.3f} pts:{:.3f}", __FUNCTION__,
       data_len + chunk_size,
@@ -2840,12 +2848,14 @@ CDVDVideoCodec::VCReturn CAMLCodec::GetPicture(VideoPicture *pVideoPicture)
 
     return CDVDVideoCodec::VC_PICTURE;
   }
-  else if (m_drain && m_buffer_level_ready && data_len == 0)
+  else if (m_drain && m_buffer_level_ready && data_len < 4096)
     return CDVDVideoCodec::VC_EOF;
   else if (buffer_level > (streambuffer ? 100.0f : 10.0f))
     return CDVDVideoCodec::VC_NONE;
   else if (ret != EAGAIN || elapsed_since_last_frame > std::chrono::seconds(m_decoder_timeout))
   {
+    CLog::Log(LOGERROR, "CAMLCodec::GetPicture: data_len, free_len, size, m_drain, m_buffer_level_ready: {:d}, {:d}, {:d}, {:d}, {:d})",
+      data_len, free_len, size, m_drain, m_buffer_level_ready);
     CLog::Log(LOGERROR, "CAMLCodec::GetPicture: time elapsed since last frame: {:d}ms ({:d}:{})",
       elapsed_since_last_frame.count(), ret, strerror(ret));
     m_tp_last_frame = std::chrono::system_clock::now();
