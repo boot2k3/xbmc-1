@@ -2846,6 +2846,8 @@ CDVDVideoCodec::VCReturn CAMLCodec::GetPicture(VideoPicture *pVideoPicture)
     return CDVDVideoCodec::VC_NONE;
   else if (ret != EAGAIN || elapsed_since_last_frame > std::chrono::seconds(m_decoder_timeout))
   {
+    CLog::Log(LOGERROR, "CAMLCodec::GetPicture: data_len, free_len, size: {:d}, {:d}, {:d})",
+      data_len, free_len, size);
     CLog::Log(LOGERROR, "CAMLCodec::GetPicture: time elapsed since last frame: {:d}ms ({:d}:{})",
       elapsed_since_last_frame.count(), ret, strerror(ret));
     m_tp_last_frame = std::chrono::system_clock::now();
