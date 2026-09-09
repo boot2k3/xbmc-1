@@ -290,6 +290,39 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
         goto FAIL;
       }
       m_pFormatName = "am-av1";
+
+      // AV1 Dolby Vision Profile 10 / 10.1: RPU is in OBU_METADATA (ITU-T T.35).
+      // Apply the same L5-zero override used for HEVC when TV-led DV is active.
+      if (aml_support_dolby_vision() && m_hints.dovi.dv_profile >= 10)
+      {
+        bool user_dv_disable = CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
+            CSettings::SETTING_COREELEC_AMLOGIC_DV_DISABLE);
+
+        if (!user_dv_disable &&
+            CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt(
+                CSettings::SETTING_COREELEC_AMLOGIC_DV_LED) == AML_DV_TV_LED)
+        {
+          m_bitstream = new CBitstreamConverter();
+          // to_annexb=false — raw AV1 OBUs, passthrough + optional RPU rewrite
+          if (!m_bitstream->Open(m_hints.codec,
+                                 m_hints.extradata.GetData(),
+                                 m_hints.extradata.GetSize(),
+                                 false))
+          {
+            delete m_bitstream;
+            m_bitstream = nullptr;
+          }
+          else
+          {
+            const bool zeroLevel5 =
+                CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
+                    CSettings::SETTING_VIDEOPLAYER_DOVIZEROLEVEL5);
+            m_bitstream->SetDoviZeroLevel5(zeroLevel5);
+            if (zeroLevel5)
+              m_streamMeta.flags.push_back("l5-zeroed");
+          }
+        }
+      }
       break;
     case AV_CODEC_ID_HEVC:
       if (aml_support_hevc()) {
