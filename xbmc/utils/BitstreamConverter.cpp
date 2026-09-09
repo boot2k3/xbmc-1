@@ -557,6 +557,16 @@ bool CBitstreamConverter::Open(enum AVCodecID codec,
       }
       return true;
       break;
+    case AV_CODEC_ID_AV1:
+      // Passthrough OBUs; optional DoVi RPU (Profile 10) rewrite in Convert()
+      if (in_extradata && in_extrasize > 0)
+        m_extraData = FFmpegExtraData(in_extradata, in_extrasize);
+      m_convert_bitstream = false;
+      m_convert_bytestream = false;
+      m_to_annexb = false;
+      m_start_decode = true;
+      return true;
+      break;
     default:
       return false;
       break;
@@ -597,7 +607,32 @@ bool CBitstreamConverter::Convert(uint8_t* pData, int iSize)
 
   if (pData)
   {
-    if (m_codec == AV_CODEC_ID_H264 || m_codec == AV_CODEC_ID_HEVC)
+    if (m_codec == AV_CODEC_ID_AV1)
+    {
+#ifdef HAVE_LIBDOVI
+      // Only rewrite when L5 zeroing (or future convert) is requested
+      if (m_setDoviZeroLevel5 || m_convert_dovi || m_removeDovi)
+      {
+        uint8_t* out = nullptr;
+        int outSize = 0;
+        if (BitstreamConvertAv1(pData, iSize, &out, &outSize) && out && outSize > 0)
+        {
+          m_convertBuffer = out;
+          m_convertSize = outSize;
+          return true;
+        }
+        if (out)
+          av_free(out);
+      }
+#endif
+      // No rewrite needed / failed → pass original buffer through
+      m_inputBuffer = pData;
+      m_inputSize = iSize;
+      m_convertSize = iSize;
+      m_convertBuffer = nullptr;
+      return true;
+    }
+    else if (m_codec == AV_CODEC_ID_H264 || m_codec == AV_CODEC_ID_HEVC)
     {
       if (m_to_annexb)
       {
@@ -2174,5 +2209,188 @@ const DoviData* CBitstreamConverter::processDoviRpu(uint8_t* buf, uint32_t nalSi
   dovi_rpu_free(rpu);
 
   return rpuData;
+}
+
+// AV1 Dolby Vision Profile 10: RPU is inside OBU_METADATA (metadata_type =
+// ITU-T T.35, country 0xB5, provider 0x003B).  Same L5-zero semantics as HEVC.
+const DoviData* CBitstreamConverter::processDoviRpuAv1(uint8_t* buf, uint32_t size)
+{
+  if (m_doviELTested && !m_convert_dovi && !m_setDoviZeroLevel5)
+    return nullptr;
+
+  DoviRpuOpaque* rpu = dovi_parse_itu_t35_dovi_metadata_obu(buf, size);
+  if (!rpu)
+    return nullptr;
+
+  const DoviRpuDataHeader* header = dovi_rpu_get_header(rpu);
+  const DoviData* rpuData = nullptr;
+  int ret = 0;
+  bool processed = false;
+
+  if (!header)
+  {
+    dovi_rpu_free(rpu);
+    return nullptr;
+  }
+
+  if (!m_doviELTested)
+  {
+    // Profile 10 has no EL; mark tested so we skip future no-op parses
+    m_doviELTested = true;
+  }
+
+  if (ret == 0 && m_setDoviZeroLevel5)
+  {
+    ret = dovi_rpu_set_active_area_offsets(rpu, 0, 0, 0, 0);
+    processed = true;
+  }
+
+  if (ret == 0 && processed)
+    rpuData = dovi_write_av1_rpu_metadata_obu_t35_complete(rpu);
+
+  dovi_rpu_free_header(header);
+  dovi_rpu_free(rpu);
+  return rpuData;
+}
+
+// Walk AV1 OBUs, rewrite any DoVi T.35 metadata OBU, rebuild the packet.
+// OBU header layout matches AMLLatchAv1Metadata / obu_util.h.
+bool CBitstreamConverter::BitstreamConvertAv1(uint8_t* pData,
+                                              int iSize,
+                                              uint8_t** poutbuf,
+                                              int* poutbuf_size)
+{
+  if (!pData || iSize <= 0 || !poutbuf || !poutbuf_size)
+    return false;
+
+  *poutbuf = nullptr;
+  *poutbuf_size = 0;
+
+  // AV1 OBU type / metadata type (same values as obu_util.h / AV1 spec)
+  constexpr int kObuMetadata = 5;
+  constexpr uint64_t kObuMetadataTypeItutT35 = 4;
+
+  auto readLeb128 = [](const uint8_t* data, size_t end, size_t& pos, uint64_t& value) -> bool {
+    value = 0;
+    for (int i = 0; i < 8; ++i)
+    {
+      if (pos >= end)
+        return false;
+      const uint8_t b = data[pos++];
+      value |= static_cast<uint64_t>(b & 0x7f) << (7 * i);
+      if (!(b & 0x80))
+        return true;
+    }
+    return false;
+  };
+
+  auto writeLeb128 = [](std::vector<uint8_t>& out, uint64_t value) {
+    while (value >= 0x80)
+    {
+      out.push_back(static_cast<uint8_t>((value & 0x7f) | 0x80));
+      value >>= 7;
+    }
+    out.push_back(static_cast<uint8_t>(value & 0x7f));
+  };
+
+  std::vector<uint8_t> out;
+  out.reserve(static_cast<size_t>(iSize) + 64);
+
+  size_t pos = 0;
+  const size_t size = static_cast<size_t>(iSize);
+  bool anyRewrite = false;
+
+  while (pos < size)
+  {
+    const size_t obuStart = pos;
+    const uint8_t hdr = pData[pos];
+    if (hdr & 0x80) // forbidden bit
+      return false;
+
+    const int type = (hdr >> 3) & 0x0f;
+    const bool extension = hdr & 0x04;
+    const bool hasSize = hdr & 0x02;
+    pos++;
+    if (extension)
+    {
+      if (pos >= size)
+        return false;
+      pos++; // extension header byte
+    }
+
+    uint64_t obuSize = 0;
+    size_t sizeFieldStart = pos;
+    if (hasSize)
+    {
+      if (!readLeb128(pData, size, pos, obuSize))
+        return false;
+    }
+    else
+      obuSize = size - pos;
+
+    if (obuSize > size - pos)
+      return false;
+
+    const size_t payloadStart = pos;
+    const size_t payloadEnd = pos + static_cast<size_t>(obuSize);
+
+    if (type == kObuMetadata && hasSize)
+    {
+      size_t p = payloadStart;
+      uint64_t metadataType = 0;
+      if (readLeb128(pData, payloadEnd, p, metadataType) &&
+          metadataType == kObuMetadataTypeItutT35)
+      {
+        // Remaining bytes of the OBU are the T.35 payload (country code …)
+        const size_t t35Off = p;
+        const size_t t35Len = payloadEnd - t35Off;
+
+        // Dolby Vision provider signature: 0xB5 00 3B …
+        if (t35Len >= 7 && pData[t35Off] == 0xb5 && pData[t35Off + 1] == 0x00 &&
+            pData[t35Off + 2] == 0x3b)
+        {
+          const DoviData* rewritten =
+              processDoviRpuAv1(const_cast<uint8_t*>(pData + t35Off),
+                                static_cast<uint32_t>(t35Len));
+          if (rewritten && rewritten->data && rewritten->len > 0)
+          {
+            // Rebuild OBU: header + leb128(newSize) + metadata_type leb + new T.35
+            std::vector<uint8_t> newPayload;
+            writeLeb128(newPayload, kObuMetadataTypeItutT35);
+            newPayload.insert(newPayload.end(), rewritten->data,
+                              rewritten->data + rewritten->len);
+
+            out.push_back(hdr); // keep original header (has_size already set)
+            if (extension)
+              out.push_back(pData[obuStart + 1]);
+            writeLeb128(out, newPayload.size());
+            out.insert(out.end(), newPayload.begin(), newPayload.end());
+
+            dovi_data_free(rewritten);
+            anyRewrite = true;
+            pos = payloadEnd;
+            continue;
+          }
+          if (rewritten)
+            dovi_data_free(rewritten);
+        }
+      }
+    }
+
+    // Copy OBU unchanged (header … end of payload)
+    out.insert(out.end(), pData + obuStart, pData + payloadEnd);
+    pos = payloadEnd;
+  }
+
+  if (!anyRewrite)
+    return false; // caller will fall back to original buffer
+
+  *poutbuf = static_cast<uint8_t*>(av_malloc(out.size() + AV_INPUT_BUFFER_PADDING_SIZE));
+  if (!*poutbuf)
+    return false;
+  memcpy(*poutbuf, out.data(), out.size());
+  memset(*poutbuf + out.size(), 0, AV_INPUT_BUFFER_PADDING_SIZE);
+  *poutbuf_size = static_cast<int>(out.size());
+  return true;
 }
 #endif
