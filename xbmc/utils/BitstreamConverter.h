@@ -153,6 +153,9 @@ protected:
 
 #ifdef HAVE_LIBDOVI
   const DoviData* processDoviRpu(uint8_t* buf, uint32_t nalSize);
+  // AV1: Dolby Vision RPU carried in OBU_METADATA / ITU-T T.35
+  const DoviData* processDoviRpuAv1(uint8_t* buf, uint32_t size);
+  bool BitstreamConvertAv1(uint8_t* pData, int iSize, uint8_t** poutbuf, int* poutbuf_size);
 #endif
 
   typedef struct omx_bitstream_ctx {
